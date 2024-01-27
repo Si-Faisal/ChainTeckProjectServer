@@ -23,6 +23,26 @@ app.use(express.json());
 
 const upload = multer();
 
+
+
+
+const verifyJWT = (req, res, next) => {
+    const authorization = req.headers.authorization;
+    if (!authorization) {
+        return res.status(401).send({ error: true, message: 'unauthorized access' });
+    }
+    // bearer token
+    const token = authorization.split(' ')[1];
+
+    jwt.verify(token, process.env.JWT_TOKEN, (err, decoded) => {
+        if (err) {
+            return res.status(403).send({ error: true, message: 'unauthorized access' })
+        }
+        req.decoded = decoded;
+        next();
+    })
+}
+
 const img_hosting_url = `https://api.imgbb.com/1/upload?key=${process.env.img_hosting_token}`
 
 
@@ -84,6 +104,23 @@ async function run() {
         const usernotificationCollection = client.db("ChainTechBlock").collection("usernotification");
         
 
+
+        app.post("/jwt",  (req, res) => {
+            const user = req.body;
+            const token = jwt.sign(user, process.env.JWT_TOKEN, { expiresIn: '5hr' });
+            return res.send({token})
+        })
+
+      const verifyAdmin = async (req, res, next) => {
+      const email = req.decoded.email;
+      const query = { email: email }
+      const user = await userCollection.findOne(query);
+      if (user?.role !== 'admin') {
+        return res.status(403).send({ error: true, message: 'forbidden message' });
+      }
+      next();
+    }
+
         app.post("/usernotification", async (req, res) => {
             const notification = req.body;
             const result = await usernotificationCollection.insertOne(notification);
@@ -103,54 +140,7 @@ async function run() {
 
         //after make payment...seat are reduce from available seat...
      
-        app.patch("/task/assignUser/:id",  async (req, res) => {
-            const taskid = req.params.id;
-  const assignUser = req.body;
-// console.log(taskid);
-  const filter = { _id: new ObjectId(taskid) };
-//   console.log(filter);
-  const updateDoc = {
-    $push: {
-      assignUsers: assignUser,
-    },
-  };
-
-  try {
-    const result = await taskCollection.updateOne(filter, updateDoc, {
-      upsert: true,
-    });
-
-    return res.json(result);
-  } catch (error) {
-    console.error("Error updating task:", error.message);
-    return res.status(500).json({ error: "Internal Server Error" });
-  }
-        }) 
-
-
-        app.patch("/user/taskId/:id",  async (req, res) => {
-            const userEmail = req.params.id;
-            const assignTask = req.body;
-          console.log(userEmail);
-            const filter = { _id: new ObjectId(userEmail) };
-            console.log(filter)
-            const updateDoc = {
-              $push: {
-                assignTasks: assignTask,
-              },
-            };
-          
-            try {
-              const result = await taskCollection.updateOne(filter, updateDoc, {
-                upsert: true,
-              });
-          
-              return res.json(result);
-            } catch (error) {
-              console.error("Error updating user:", error.message);
-              return res.status(500).json({ error: "Internal Server Error" });
-            }
-        })
+       
 
 
         app.patch("/task/:id",  async (req, res) => {
@@ -238,12 +228,32 @@ async function run() {
                 return res.status(500).json({ success: false, error: "Internal Server Error" });
               }
         })
-
         
+     
+      
+
+       
+        
+
+
+
+        // //user info insert to db...
+        app.get("/users",  async (req, res) => {
+           
+            const result = await userCollection.find().toArray();
+            return res.send(result);
+        })
+
+      
+
+       
+
+
         app.post("/users",  async (req, res) => {
            
             const user = req.body;
-
+         
+            
             const query = { email: user.email };
             const existingUser = await userCollection.findOne(query);
             if (existingUser) {
@@ -252,6 +262,26 @@ async function run() {
             const result = await userCollection.insertOne(user); 
             return res.send(result);
         })
+
+       
+
+    
+
+
+        
+
+       
+        
+
+        
+
+      
+
+
+
+        // ///payment user info api,,,,,
+
+        
         // Send a ping to confirm a successful connection
         // await client.db("admin").command({ ping: 1 });
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
